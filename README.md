@@ -19,11 +19,13 @@ Claude Code operates on a 5-hour subscription model that renews from your first 
 ## ✨ Features
 
 - 🔄 **Automatic Renewal** - Starts Claude sessions exactly when needed
-- ⏰ **Scheduled Start Times** - Set when daemon begins monitoring (`--at "09:00"` or `--at "2025-01-28 14:30"`)
+- ⏰ **Scheduled Start Times** - Set when daemon begins monitoring (`--at "09:00"`)
+- 🛑 **Scheduled Stop Times** - Set when daemon stops monitoring (`--stop "17:00"`)
+- 🌅 **Daily Auto-Restart** - Automatically resumes next day at start time
 - 📊 **Smart Monitoring** - Integrates with [ccusage](https://github.com/ryoppippi/ccusage) for accurate timing
 - 🎯 **Intelligent Scheduling** - Checks more frequently as renewal approaches
-- 📝 **Detailed Logging** - Track all renewal activities with WAITING/ACTIVE states
-- 🛡️ **Failsafe Design** - Multiple fallback mechanisms
+- 📝 **Detailed Logging** - Track all renewal activities with WAITING/ACTIVE/STOPPED states
+- 🛡️ **Failsafe Design** - Multiple fallback mechanisms and prevents renewals near stop time
 - 🖥️ **Cross-platform** - Works on macOS and Linux
 
 ## 🚀 Quick Start
@@ -42,6 +44,7 @@ chmod +x *.sh
 # OR manual daemon start
 ./claude-daemon-manager.sh start
 ./claude-daemon-manager.sh start --at "09:00"  # with start time
+./claude-daemon-manager.sh start --at "09:00" --stop "17:00"  # with start/stop times
 ```
 
 That's it! The daemon will now run in the background and automatically renew your Claude sessions.
@@ -100,6 +103,10 @@ chmod +x *.sh
 ./claude-daemon-manager.sh start --at "09:00"
 ./claude-daemon-manager.sh start --at "2025-01-28 14:30"
 
+# Start with both start and stop times
+./claude-daemon-manager.sh start --at "09:00" --stop "17:00"
+./claude-daemon-manager.sh start --at "2025-01-28 09:00" --stop "2025-01-28 17:00"
+
 # Check daemon status
 ./claude-daemon-manager.sh status
 
@@ -112,18 +119,21 @@ chmod +x *.sh
 # Stop the daemon
 ./claude-daemon-manager.sh stop
 
-# Restart the daemon (with same start time if previously set)
+# Restart the daemon (with same start/stop times if previously set)
 ./claude-daemon-manager.sh restart
 ./claude-daemon-manager.sh restart --at "10:00"  # new start time
+./claude-daemon-manager.sh restart --at "09:00" --stop "17:00"  # new schedule
 ```
 
 ### How It Works
 
 1. **Monitors** your Claude usage using ccusage (or time-based fallback)
 2. **Detects** when your 5-hour block is about to expire
-3. **Waits** until just after expiration
+3. **Waits** until just after expiration (within scheduled hours)
 4. **Starts** a minimal Claude session ("hi" command)
-5. **Logs** all activities for transparency
+5. **Stops** monitoring at configured stop time
+6. **Automatically restarts** the next day at start time
+7. **Logs** all activities for transparency
 
 ### 💡 Avoid Session Burning
 
@@ -135,11 +145,17 @@ chmod +x *.sh
 # GOOD: Schedule daemon to start monitoring at 9am
 ./claude-daemon-manager.sh start --at "09:00"
 # Your 5-hour block: 9am-2pm (perfect timing!)
+
+# BETTER: Schedule both start and stop times for daily work schedule
+./claude-daemon-manager.sh start --at "09:00" --stop "17:00"
+# Monitors 9am-5pm, stops automatically, resumes next day at 9am
 ```
 
 **Use Cases:**
 - 🌅 **Morning Coder**: `--at "09:00"` for 9am-2pm coding sessions
 - 🌙 **Night Owl**: `--at "18:00"` for 6pm-11pm evening coding
+- 🏢 **Work Schedule**: `--at "09:00" --stop "17:00"` for 9am-5pm daily monitoring
+- 🎯 **Focused Sessions**: `--at "14:00" --stop "19:00"` for afternoon coding blocks
 - 📅 **Planned Session**: `--at "2025-01-28 14:30"` for specific date/time
 
 ### Monitoring Schedule
