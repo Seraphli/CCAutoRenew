@@ -186,9 +186,16 @@ start_claude_session() {
         return 1
     fi
     
+    # Define an array of predefined messages
+    local messages=("hi" "hello" "hey there" "good day" "greetings" "howdy" "what's up" "salutations")
+    
+    # Randomly select a message from the array
+    local random_index=$((RANDOM % ${#messages[@]}))
+    local selected_message="${messages[$random_index]}"
+    
     # Simple approach - macOS compatible
     # Use a subshell with background process for timeout
-    (echo "hi" | claude >> "$LOG_FILE" 2>&1) &
+    (echo "$selected_message" | claude >> "$LOG_FILE" 2>&1) &
     local pid=$!
     
     # Wait up to 10 seconds
@@ -209,7 +216,7 @@ start_claude_session() {
     fi
     
     if [ $result -eq 0 ] || [ $result -eq 124 ]; then  # 124 is timeout exit code
-        log_message "Claude session started successfully"
+        log_message "Claude session started successfully with message: $selected_message"
         date +%s > "$LAST_ACTIVITY_FILE"
         return 0
     else
