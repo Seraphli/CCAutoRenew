@@ -27,6 +27,7 @@ Claude Code operates on a 5-hour subscription model that renews from your first 
 - 📝 **Detailed Logging** - Track all renewal activities with WAITING/ACTIVE/STOPPED states
 - 🛡️ **Failsafe Design** - Multiple fallback mechanisms and prevents renewals near stop time
 - 🖥️ **Cross-platform** - Works on macOS and Linux
+- ⚡ **Clock-only Mode** - Use `--disableccusage` flag to bypass ccusage entirely
 
 ## 🚀 Quick Start
 
@@ -45,6 +46,7 @@ chmod +x *.sh
 ./claude-daemon-manager.sh start
 ./claude-daemon-manager.sh start --at "09:00"  # with start time
 ./claude-daemon-manager.sh start --at "09:00" --stop "17:00"  # with start/stop times
+./claude-daemon-manager.sh start --at "09:00" --stop "17:00" --disableccusage  # clock-only mode
 ```
 
 That's it! The daemon will now run in the background and automatically renew your Claude sessions.
@@ -107,6 +109,9 @@ chmod +x *.sh
 ./claude-daemon-manager.sh start --at "09:00" --stop "17:00"
 ./claude-daemon-manager.sh start --at "2025-01-28 09:00" --stop "2025-01-28 17:00"
 
+# Start with clock-only mode (bypass ccusage entirely)
+./claude-daemon-manager.sh start --at "09:00" --stop "17:00" --disableccusage
+
 # Check daemon status
 ./claude-daemon-manager.sh status
 
@@ -135,6 +140,28 @@ chmod +x *.sh
 6. **Automatically restarts** the next day at start time
 7. **Logs** all activities for transparency
 
+### Clock-only Mode
+
+By default, the daemon uses [ccusage](https://github.com/ryoppippi/ccusage) for accurate timing information.
+However, you can bypass ccusage entirely and rely solely on clock-based timing:
+
+```bash
+# Start with clock-only mode
+./claude-daemon-manager.sh start --at "09:00" --stop "17:00" --disableccusage
+```
+
+When `--disableccusage` is used:
+- 🚫 **No ccusage dependency** - Works without ccusage installed
+- ⏰ **Clock-based timing** - Relies on 5-hour intervals from last activity
+- 📝 **Clear logging** - Shows "⚠️ ccusage DISABLED - Using clock-based timing only"
+- 🎯 **Same functionality** - All scheduling features still work
+
+This mode is useful when:
+- You don't want to install ccusage
+- ccusage is causing issues on your system
+- You prefer simpler time-based renewal checking
+- You're in a restricted environment where ccusage can't run
+
 ### 💡 Avoid Session Burning
 
 **Problem:** Starting daemon at wrong time wastes your 5-hour block
@@ -157,6 +184,7 @@ chmod +x *.sh
 - 🏢 **Work Schedule**: `--at "09:00" --stop "17:00"` for 9am-5pm daily monitoring
 - 🎯 **Focused Sessions**: `--at "14:00" --stop "19:00"` for afternoon coding blocks
 - 📅 **Planned Session**: `--at "2025-01-28 14:30"` for specific date/time
+- ⚡ **Clock-only Mode**: `--at "09:00" --stop "17:00" --disableccusage` to bypass ccusage
 
 ### Monitoring Schedule
 
@@ -245,6 +273,15 @@ tail -20 ~/.claude-auto-renew-daemon.log
 ccusage blocks
 
 # The daemon will fall back to time-based checking automatically
+# Or use --disableccusage flag to bypass ccusage entirely
+```
+
+### Clock-only mode verification
+```bash
+# Check logs for clock-only mode confirmation
+grep "ccusage DISABLED" ~/.claude-auto-renew-daemon.log
+
+# Should show: "⚠️ ccusage DISABLED - Using clock-based timing only"
 ```
 
 ### Claude command fails

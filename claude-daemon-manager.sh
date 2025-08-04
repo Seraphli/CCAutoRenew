@@ -30,6 +30,7 @@ start_daemon() {
     # Parse --at and --stop parameters
     START_TIME=""
     STOP_TIME=""
+    DISABLE_CCUSAGE=false
     
     # Parse parameters
     while [[ $# -gt 1 ]]; do
@@ -41,6 +42,10 @@ start_daemon() {
             --stop)
                 STOP_TIME="$3"
                 shift 2
+                ;;
+            --disableccusage)
+                DISABLE_CCUSAGE=true
+                shift
                 ;;
             *)
                 shift
@@ -111,7 +116,11 @@ start_daemon() {
     fi
     
     print_status "Starting Claude auto-renewal daemon..."
-    nohup "$DAEMON_SCRIPT" > /dev/null 2>&1 &
+    if [ "$DISABLE_CCUSAGE" = true ]; then
+        nohup "$DAEMON_SCRIPT" --disableccusage > /dev/null 2>&1 &
+    else
+        nohup "$DAEMON_SCRIPT" > /dev/null 2>&1 &
+    fi
     
     sleep 2
     
@@ -300,8 +309,10 @@ case "$1" in
         echo "  start                      - Start the daemon"
         echo "  start --at TIME            - Start daemon but begin monitoring at specified time"
         echo "  start --at TIME --stop END - Start monitoring at TIME, stop at END"
+        echo "  start --disableccusage     - Start daemon without ccusage (clock-based only)"
         echo "                               Examples: --at '09:00' --stop '17:00'"
         echo "                                        --at '2025-01-28 09:00' --stop '2025-01-28 17:00'"
+        echo "                                        --at '09:00' --stop '17:00' --disableccusage"
         echo "  stop                       - Stop the daemon"
         echo "  restart                    - Restart the daemon"
         echo "  status                     - Show daemon status"

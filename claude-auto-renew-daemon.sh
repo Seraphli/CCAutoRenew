@@ -8,6 +8,7 @@ PID_FILE="$HOME/.claude-auto-renew-daemon.pid"
 LAST_ACTIVITY_FILE="$HOME/.claude-last-activity"
 START_TIME_FILE="$HOME/.claude-auto-renew-start-time"
 STOP_TIME_FILE="$HOME/.claude-auto-renew-stop-time"
+DISABLE_CCUSAGE=false
 
 # Function to log messages
 log_message() {
@@ -145,6 +146,11 @@ get_ccusage_cmd() {
 
 # Function to get minutes until reset
 get_minutes_until_reset() {
+    # If ccusage is disabled, return nothing to force time-based checking
+    if [ "$DISABLE_CCUSAGE" = true ]; then
+        return 1
+    fi
+    
     local ccusage_cmd=$(get_ccusage_cmd)
     if [ $? -ne 0 ]; then
         return 1
@@ -272,6 +278,13 @@ main() {
     log_message "PID: $$"
     log_message "Logs: $LOG_FILE"
     
+    # Log ccusage status
+    if [ "$DISABLE_CCUSAGE" = true ]; then
+        log_message "⚠️  ccusage DISABLED - Using clock-based timing only"
+    else
+        log_message "✅ ccusage ENABLED - Using accurate timing when available"
+    fi
+    
     # Check for start and stop times
     if [ -f "$START_TIME_FILE" ]; then
         start_epoch=$(cat "$START_TIME_FILE")
@@ -288,7 +301,7 @@ main() {
     fi
     
     # Check ccusage availability
-    if ! get_ccusage_cmd &> /dev/null; then
+    if [ "$DISABLE_CCUSAGE" = false ] && ! get_ccusage_cmd &> /dev/null; then
         log_message "WARNING: ccusage not found. Using time-based checking."
         log_message "Install ccusage for more accurate timing: npm install -g ccusage"
     fi
@@ -436,6 +449,19 @@ main() {
         sleep "$sleep_duration"
     done
 }
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --disableccusage)
+            DISABLE_CCUSAGE=true
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
 
 # Start the daemon
 main
