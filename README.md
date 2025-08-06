@@ -25,6 +25,7 @@ Claude Code operates on a 5-hour subscription model that renews from your first 
 - 📊 **Smart Monitoring** - Integrates with [ccusage](https://github.com/ryoppippi/ccusage) for accurate timing
 - 🎯 **Intelligent Scheduling** - Checks more frequently as renewal approaches
 - 📝 **Detailed Logging** - Track all renewal activities with WAITING/ACTIVE/STOPPED states
+- 📊 **Live Dashboard** - Real-time monitoring with progress bars and renewal schedules
 - 🛡️ **Failsafe Design** - Multiple fallback mechanisms and prevents renewals near stop time
 - 🖥️ **Cross-platform** - Works on macOS and Linux
 - ⚡ **Clock-only Mode** - Use `--disableccusage` flag to bypass ccusage entirely
@@ -115,6 +116,9 @@ chmod +x *.sh
 # Check daemon status
 ./claude-daemon-manager.sh status
 
+# Live dashboard with real-time updates
+./claude-daemon-manager.sh dash
+
 # View logs
 ./claude-daemon-manager.sh logs
 
@@ -128,6 +132,58 @@ chmod +x *.sh
 ./claude-daemon-manager.sh restart
 ./claude-daemon-manager.sh restart --at "10:00"  # new start time
 ./claude-daemon-manager.sh restart --at "09:00" --stop "17:00"  # new schedule
+```
+
+### Live Dashboard 📊
+
+The new live dashboard provides real-time monitoring of your Claude renewal status:
+
+```bash
+# Launch the interactive dashboard
+./claude-daemon-manager.sh dash
+```
+
+**Dashboard Features:**
+- 🔧 **Daemon Status** - Current state (WAITING/ACTIVE/STOPPED) with PID and timing details
+- ⏱️ **Progress Bar** - Visual progress showing time until next renewal reset (color-coded)
+- 📅 **Today's Plan** - Estimated renewal trigger times throughout the day
+- 📝 **Live Activity** - Real-time log entries and recent daemon actions
+- 🔄 **Auto-Updates** - Refreshes every minute automatically
+- 🎯 **Smart Layout** - Clean interface with clear sections and formatting
+
+**Progress Bar Colors:**
+- 🟢 **Green** - More than 1 hour remaining
+- 🟡 **Yellow** - 30-60 minutes remaining  
+- 🔴 **Red** - Less than 30 minutes remaining
+
+**Usage:**
+- Press **Ctrl+C** to exit the dashboard
+- Dashboard updates automatically every 60 seconds
+- Works only when daemon is running
+- Shows "No renewal tracking" when no activity file exists
+
+Example dashboard output:
+```
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    Claude Auto-Renewal Dashboard                            ║
+║                   Wednesday, August 06, 2025 - 16:54:07                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+🔧 DAEMON STATUS:
+  PID: 12345
+  Status: ✅ ACTIVE - Auto-renewal monitoring enabled
+
+⏱️  TIME TO NEXT RESET:
+  ████████████████████████░░░░░░░░░░░░░░░░ 60% (1h 59m remaining)
+  Next renewal at: 18:53
+
+📅 TODAY'S RENEWAL PLAN:
+  • 18:53 (NEXT)
+  • 23:53
+
+📝 RECENT ACTIVITY:
+  [2025-08-06 16:53:20] Renewal successful!
+  [2025-08-06 16:53:10] Starting Claude session for renewal...
 ```
 
 ### How It Works
@@ -330,8 +386,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 💡 Tips
 
+- Use `claude-daemon-manager.sh dash` for real-time monitoring with visual progress
 - Run `claude-daemon-manager.sh status` regularly to ensure the daemon is active
 - Check logs after updates to verify renewals are working
+- The dashboard shows estimated renewal times for the entire day
+- Progress bar changes color as renewal approaches (green → yellow → red)
 - The daemon is lightweight - uses minimal resources while running
 - Can be added to system startup for automatic launch
 
