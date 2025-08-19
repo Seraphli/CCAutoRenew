@@ -26,6 +26,7 @@ Claude Code operates on a 5-hour subscription model that renews from your first 
 - 🎯 **Intelligent Scheduling** - Checks more frequently as renewal approaches
 - 📝 **Detailed Logging** - Track all renewal activities with WAITING/ACTIVE/STOPPED states
 - 📊 **Live Dashboard** - Real-time monitoring with progress bars and renewal schedules
+- 💬 **Custom Messages** - Use `--message` to send contextual renewal messages instead of generic greetings
 - 🛡️ **Failsafe Design** - Multiple fallback mechanisms and prevents renewals near stop time
 - 🖥️ **Cross-platform** - Works on macOS and Linux
 - ⚡ **Clock-only Mode** - Use `--disableccusage` flag to bypass ccusage entirely
@@ -47,6 +48,7 @@ chmod +x *.sh
 ./claude-daemon-manager.sh start
 ./claude-daemon-manager.sh start --at "09:00"  # with start time
 ./claude-daemon-manager.sh start --at "09:00" --stop "17:00"  # with start/stop times
+./claude-daemon-manager.sh start --message "continue working on my project"  # with custom message
 ./claude-daemon-manager.sh start --at "09:00" --stop "17:00" --disableccusage  # clock-only mode
 ```
 
@@ -112,6 +114,10 @@ chmod +x *.sh
 
 # Start with clock-only mode (bypass ccusage entirely)
 ./claude-daemon-manager.sh start --at "09:00" --stop "17:00" --disableccusage
+
+# Start with custom renewal message (useful for context continuity)
+./claude-daemon-manager.sh start --message "continue working on the React feature"
+./claude-daemon-manager.sh start --at "09:00" --message "resume our Python project"
 
 # Check daemon status
 ./claude-daemon-manager.sh status
@@ -191,10 +197,42 @@ Example dashboard output:
 1. **Monitors** your Claude usage using ccusage (or time-based fallback)
 2. **Detects** when your 5-hour block is about to expire
 3. **Waits** until just after expiration (within scheduled hours)
-4. **Starts** a minimal Claude session ("hi" command)
+4. **Starts** a minimal Claude session (custom message or random greeting)
 5. **Stops** monitoring at configured stop time
 6. **Automatically restarts** the next day at start time
 7. **Logs** all activities for transparency
+
+### Custom Renewal Messages 💬
+
+**Default Behavior (without --message):** The daemon automatically sends random greetings ("hi", "hello", "hey there", "good day", "greetings", "howdy", "what's up", "salutations") when renewing sessions. This is the original behavior and requires no configuration.
+
+**Custom Messages (with --message):** You can optionally specify a custom message to maintain context when resuming work after rate limits:
+
+```bash
+# Use custom message for renewals
+./claude-daemon-manager.sh start --message "continue working on the React feature"
+
+# Combine with other options
+./claude-daemon-manager.sh start --at "09:00" --stop "17:00" --message "resume our database optimization"
+
+# The message persists across daemon restarts
+./claude-daemon-manager.sh restart  # Still uses the previous custom message
+
+# Clear custom message (return to random greetings)
+./claude-daemon-manager.sh restart  # Without --message flag
+```
+
+**Why use custom messages?**
+- **Context Continuity**: When rate-limited mid-task, resume with relevant context
+- **Project Tracking**: Include project name for better session organization
+- **Task Resumption**: Specify what you were working on before the limit
+- **Better History**: More meaningful renewal entries in your Claude history
+
+**Example scenarios:**
+- Working on a feature: `--message "continue implementing the auth system"`
+- Debugging session: `--message "resume debugging the memory leak issue"`
+- Learning session: `--message "continue the Python tutorial"`
+- Code review: `--message "resume reviewing the pull request"`
 
 ### Clock-only Mode
 
@@ -240,6 +278,7 @@ This mode is useful when:
 - 🏢 **Work Schedule**: `--at "09:00" --stop "17:00"` for 9am-5pm daily monitoring
 - 🎯 **Focused Sessions**: `--at "14:00" --stop "19:00"` for afternoon coding blocks
 - 📅 **Planned Session**: `--at "2025-01-28 14:30"` for specific date/time
+- 💬 **Context Preservation**: `--message "continue React feature"` to maintain work context
 - ⚡ **Clock-only Mode**: `--at "09:00" --stop "17:00" --disableccusage` to bypass ccusage
 
 ### Monitoring Schedule
