@@ -7,6 +7,8 @@ LOG_FILE="$HOME/.claude-auto-renew-daemon.log"
 PID_FILE="$HOME/.claude-auto-renew-daemon.pid"
 LAST_ACTIVITY_FILE="$HOME/.claude-last-activity"
 START_TIME_FILE="$HOME/.claude-auto-renew-start-time"
+STOP_TIME_FILE="$HOME/.claude-auto-renew-stop-time"
+DISABLE_CCUSAGE=false
 
 # Function to log messages
 log_message() {
@@ -23,21 +25,92 @@ cleanup() {
 # Set up signal handlers
 trap cleanup SIGTERM SIGINT
 
-# Function to check if we're past the start time
-is_start_time_reached() {
+# Function to check if we're in the active monitoring window
+is_monitoring_active() {
+    local current_epoch=$(date +%s)
+    local start_epoch=""
+    local stop_epoch=""
+    
+    if [ -f "$START_TIME_FILE" ]; then
+        start_epoch=$(cat "$START_TIME_FILE")
+    fi
+    
+    if [ -f "$STOP_TIME_FILE" ]; then
+        stop_epoch=$(cat "$STOP_TIME_FILE")
+    fi
+    
+    # If no start time set, always active (unless stop time is set and passed)
+    if [ -z "$start_epoch" ]; then
+        if [ -n "$stop_epoch" ] && [ "$current_epoch" -ge "$stop_epoch" ]; then
+            return 1  # Past stop time
+        else
+            return 0  # Active
+        fi
+    fi
+    
+    # Check if we're before start time
+    if [ "$current_epoch" -lt "$start_epoch" ]; then
+        return 1  # Before start time
+    fi
+    
+    # Check if we're past stop time
+    if [ -n "$stop_epoch" ] && [ "$current_epoch" -ge "$stop_epoch" ]; then
+        return 1  # Past stop time
+    fi
+    
+    return 0  # In active window
+}
+
+# Function to check if we should schedule next day restart
+should_restart_tomorrow() {
+    if [ ! -f "$START_TIME_FILE" ] || [ ! -f "$STOP_TIME_FILE" ]; then
+        return 1  # No scheduling needed
+    fi
+    
+    local current_epoch=$(date +%s)
+    local stop_epoch=$(cat "$STOP_TIME_FILE")
+    
+    # Check if we've passed stop time
+    if [ "$current_epoch" -ge "$stop_epoch" ]; then
+        return 0  # Should restart tomorrow
+    fi
+    
+    return 1  # Not yet time
+}
+
+# Function to schedule restart for next day
+schedule_next_day_restart() {
     if [ ! -f "$START_TIME_FILE" ]; then
-        # No start time set, always active
-        return 0
+        return 1
     fi
     
     local start_epoch=$(cat "$START_TIME_FILE")
-    local current_epoch=$(date +%s)
+    local stop_epoch=""
     
-    if [ "$current_epoch" -ge "$start_epoch" ]; then
-        return 0  # Start time reached
-    else
-        return 1  # Still waiting
+    if [ -f "$STOP_TIME_FILE" ]; then
+        stop_epoch=$(cat "$STOP_TIME_FILE")
     fi
+    
+    # Calculate tomorrow's start time
+    local next_start=$((start_epoch + 86400))
+    local next_stop=""
+    
+    if [ -n "$stop_epoch" ]; then
+        next_stop=$((stop_epoch + 86400))
+    fi
+    
+    # Update the time files for tomorrow
+    echo "$next_start" > "$START_TIME_FILE"
+    if [ -n "$next_stop" ]; then
+        echo "$next_stop" > "$STOP_TIME_FILE"
+    fi
+    
+    # Remove activation marker so it gets recreated tomorrow
+    rm -f "${START_TIME_FILE}.activated" 2>/dev/null
+    
+    log_message "🔄 Scheduled restart for tomorrow at $(date -d "@$next_start" 2>/dev/null || date -r "$next_start")"
+    
+    return 0
 }
 
 # Function to get time until start
@@ -73,6 +146,11 @@ get_ccusage_cmd() {
 
 # Function to get minutes until reset
 get_minutes_until_reset() {
+    # If ccusage is disabled, return nothing to force time-based checking
+    if [ "$DISABLE_CCUSAGE" = true ]; then
+        return 1
+    fi
+    
     local ccusage_cmd=$(get_ccusage_cmd)
     if [ $? -ne 0 ]; then
         return 1
@@ -108,9 +186,16 @@ start_claude_session() {
         return 1
     fi
     
+    # Define an array of predefined messages
+    local messages=("hi" "hello" "hey there" "good day" "greetings" "howdy" "what's up" "salutations")
+    
+    # Randomly select a message from the array
+    local random_index=$((RANDOM % ${#messages[@]}))
+    local selected_message="${messages[$random_index]}"
+    
     # Simple approach - macOS compatible
     # Use a subshell with background process for timeout
-    (echo "hi" | claude >> "$LOG_FILE" 2>&1) &
+    (echo "$selected_message" | claude >> "$LOG_FILE" 2>&1) &
     local pid=$!
     
     # Wait up to 10 seconds
@@ -131,7 +216,7 @@ start_claude_session() {
     fi
     
     if [ $result -eq 0 ] || [ $result -eq 124 ]; then  # 124 is timeout exit code
-        log_message "Claude session started successfully"
+        log_message "Claude session started successfully with message: $selected_message"
         date +%s > "$LAST_ACTIVITY_FILE"
         return 0
     else
@@ -200,7 +285,14 @@ main() {
     log_message "PID: $$"
     log_message "Logs: $LOG_FILE"
     
-    # Check for start time
+    # Log ccusage status
+    if [ "$DISABLE_CCUSAGE" = true ]; then
+        log_message "⚠️  ccusage DISABLED - Using clock-based timing only"
+    else
+        log_message "✅ ccusage ENABLED - Using accurate timing when available"
+    fi
+    
+    # Check for start and stop times
     if [ -f "$START_TIME_FILE" ]; then
         start_epoch=$(cat "$START_TIME_FILE")
         log_message "Start time configured: $(date -d "@$start_epoch" 2>/dev/null || date -r "$start_epoch")"
@@ -208,72 +300,135 @@ main() {
         log_message "No start time set - will begin monitoring immediately"
     fi
     
+    if [ -f "$STOP_TIME_FILE" ]; then
+        stop_epoch=$(cat "$STOP_TIME_FILE")
+        log_message "Stop time configured: $(date -d "@$stop_epoch" 2>/dev/null || date -r "$stop_epoch")"
+    else
+        log_message "No stop time set - will monitor continuously"
+    fi
+    
     # Check ccusage availability
-    if ! get_ccusage_cmd &> /dev/null; then
+    if [ "$DISABLE_CCUSAGE" = false ] && ! get_ccusage_cmd &> /dev/null; then
         log_message "WARNING: ccusage not found. Using time-based checking."
         log_message "Install ccusage for more accurate timing: npm install -g ccusage"
     fi
     
     # Main loop
     while true; do
-        # Check if we're past start time
-        if ! is_start_time_reached; then
-            time_until_start=$(get_time_until_start)
-            hours=$((time_until_start / 3600))
-            minutes=$(((time_until_start % 3600) / 60))
-            seconds=$((time_until_start % 60))
+        # Check if we should schedule next day restart first
+        if should_restart_tomorrow; then
+            log_message "🛑 Stop time reached. Scheduling restart for tomorrow..."
+            schedule_next_day_restart
             
-            if [ "$hours" -gt 0 ]; then
-                log_message "Waiting for start time (${hours}h ${minutes}m remaining)..."
-                sleep 300  # Check every 5 minutes when waiting
-            elif [ "$minutes" -gt 2 ]; then
-                log_message "Waiting for start time (${minutes}m ${seconds}s remaining)..."
-                sleep 60   # Check every minute when close
-            elif [ "$time_until_start" -gt 10 ]; then
-                log_message "Waiting for start time (${minutes}m ${seconds}s remaining)..."
-                sleep 10   # Check every 10 seconds when very close
+            # Wait for tomorrow's start time
+            while ! is_monitoring_active; do
+                time_until_start=$(get_time_until_start)
+                hours=$((time_until_start / 3600))
+                minutes=$(((time_until_start % 3600) / 60))
+                
+                if [ "$hours" -gt 0 ]; then
+                    log_message "⏰ Waiting for tomorrow's start time (${hours}h ${minutes}m remaining)..."
+                    sleep 3600  # Check every hour when waiting for tomorrow
+                else
+                    log_message "⏰ Waiting for start time (${minutes}m remaining)..."
+                    sleep 300   # Check every 5 minutes when close
+                fi
+            done
+            
+            log_message "🌅 New day started! Resuming monitoring..."
+            continue
+        fi
+        
+        # Check if we're in monitoring window
+        if ! is_monitoring_active; then
+            # Calculate time until start or reason for inactivity
+            if [ -f "$START_TIME_FILE" ]; then
+                time_until_start=$(get_time_until_start)
+                hours=$((time_until_start / 3600))
+                minutes=$(((time_until_start % 3600) / 60))
+                seconds=$((time_until_start % 60))
+                
+                if [ "$time_until_start" -gt 0 ]; then
+                    # Before start time
+                    if [ "$hours" -gt 0 ]; then
+                        log_message "⏰ Waiting for start time (${hours}h ${minutes}m remaining)..."
+                        sleep 300  # Check every 5 minutes when waiting
+                    elif [ "$minutes" -gt 2 ]; then
+                        log_message "⏰ Waiting for start time (${minutes}m ${seconds}s remaining)..."
+                        sleep 60   # Check every minute when close
+                    elif [ "$time_until_start" -gt 10 ]; then
+                        log_message "⏰ Waiting for start time (${minutes}m ${seconds}s remaining)..."
+                        sleep 10   # Check every 10 seconds when very close
+                    else
+                        log_message "⏰ Waiting for start time (${seconds}s remaining)..."
+                        sleep 2    # Check every 2 seconds when imminent
+                    fi
+                else
+                    # Past stop time, waiting for tomorrow
+                    log_message "🛑 Past stop time, waiting for tomorrow..."
+                    sleep 300
+                fi
             else
-                log_message "Waiting for start time (${seconds}s remaining)..."
-                sleep 2    # Check every 2 seconds when imminent
+                # No start time but inactive - must be past stop time
+                log_message "🛑 Past stop time, no restart scheduled..."
+                sleep 300
             fi
             continue
         fi
         
-        # If we just reached start time, log it
+        # If we just entered active time, log it
         if [ -f "$START_TIME_FILE" ]; then
-            # Check if this is the first time we're active
+            # Check if this is the first time we're active today
             if [ ! -f "${START_TIME_FILE}.activated" ]; then
                 log_message "✅ Start time reached! Beginning auto-renewal monitoring..."
                 touch "${START_TIME_FILE}.activated"
             fi
         fi
         
+        # Check if we're approaching stop time
+        current_time=$(date +%s)
+        stop_time_approaching=false
+        
+        if [ -f "$STOP_TIME_FILE" ]; then
+            stop_epoch=$(cat "$STOP_TIME_FILE")
+            time_until_stop=$((stop_epoch - current_time))
+            
+            # Don't start new renewals if stop time is within 10 minutes
+            if [ "$time_until_stop" -le 600 ] && [ "$time_until_stop" -gt 0 ]; then
+                stop_time_approaching=true
+                minutes_until_stop=$((time_until_stop / 60))
+                log_message "⚠️  Stop time approaching in ${minutes_until_stop} minutes - no new renewals"
+            fi
+        fi
+        
         # Get minutes until reset
         minutes_remaining=$(get_minutes_until_reset)
         
-        # Check if we should renew
+        # Check if we should renew (only if not approaching stop time)
         should_renew=false
         
-        if [ -n "$minutes_remaining" ] && [ "$minutes_remaining" -gt 0 ]; then
-            if [ "$minutes_remaining" -le 2 ]; then
-                should_renew=true
-                log_message "Reset imminent ($minutes_remaining minutes), preparing to renew..."
-            fi
-        else
-            # Fallback check
-            if [ -f "$LAST_ACTIVITY_FILE" ]; then
-                last_activity=$(cat "$LAST_ACTIVITY_FILE")
-                current_time=$(date +%s)
-                time_diff=$((current_time - last_activity))
-                
-                if [ $time_diff -ge 18000 ]; then
+        if [ "$stop_time_approaching" = false ]; then
+            if [ -n "$minutes_remaining" ] && [ "$minutes_remaining" -gt 0 ]; then
+                if [ "$minutes_remaining" -le 2 ]; then
                     should_renew=true
-                    log_message "5 hours elapsed since last activity, renewing..."
+                    log_message "Reset imminent ($minutes_remaining minutes), preparing to renew..."
                 fi
             else
-                # No activity recorded, safe to start
-                should_renew=true
-                log_message "No previous activity recorded, starting initial session..."
+                # Fallback check
+                if [ -f "$LAST_ACTIVITY_FILE" ]; then
+                    last_activity=$(cat "$LAST_ACTIVITY_FILE")
+                    current_time=$(date +%s)
+                    time_diff=$((current_time - last_activity))
+                    
+                    if [ $time_diff -ge 18000 ]; then
+                        should_renew=true
+                        log_message "5 hours elapsed since last activity, renewing..."
+                    fi
+                else
+                    # No activity recorded, safe to start
+                    should_renew=true
+                    log_message "No previous activity recorded, starting initial session..."
+                fi
             fi
         fi
         
@@ -301,6 +456,19 @@ main() {
         sleep "$sleep_duration"
     done
 }
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --disableccusage)
+            DISABLE_CCUSAGE=true
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
 
 # Start the daemon
 main

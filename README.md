@@ -19,12 +19,16 @@ Claude Code operates on a 5-hour subscription model that renews from your first 
 ## ✨ Features
 
 - 🔄 **Automatic Renewal** - Starts Claude sessions exactly when needed
-- ⏰ **Scheduled Start Times** - Set when daemon begins monitoring (`--at "09:00"` or `--at "2025-01-28 14:30"`)
+- ⏰ **Scheduled Start Times** - Set when daemon begins monitoring (`--at "09:00"`)
+- 🛑 **Scheduled Stop Times** - Set when daemon stops monitoring (`--stop "17:00"`)
+- 🌅 **Daily Auto-Restart** - Automatically resumes next day at start time
 - 📊 **Smart Monitoring** - Integrates with [ccusage](https://github.com/ryoppippi/ccusage) for accurate timing
 - 🎯 **Intelligent Scheduling** - Checks more frequently as renewal approaches
-- 📝 **Detailed Logging** - Track all renewal activities with WAITING/ACTIVE states
-- 🛡️ **Failsafe Design** - Multiple fallback mechanisms
+- 📝 **Detailed Logging** - Track all renewal activities with WAITING/ACTIVE/STOPPED states
+- 📊 **Live Dashboard** - Real-time monitoring with progress bars and renewal schedules
+- 🛡️ **Failsafe Design** - Multiple fallback mechanisms and prevents renewals near stop time
 - 🖥️ **Cross-platform** - Works on macOS and Linux
+- ⚡ **Clock-only Mode** - Use `--disableccusage` flag to bypass ccusage entirely
 
 ## 🚀 Quick Start
 
@@ -42,6 +46,8 @@ chmod +x *.sh
 # OR manual daemon start
 ./claude-daemon-manager.sh start
 ./claude-daemon-manager.sh start --at "09:00"  # with start time
+./claude-daemon-manager.sh start --at "09:00" --stop "17:00"  # with start/stop times
+./claude-daemon-manager.sh start --at "09:00" --stop "17:00" --disableccusage  # clock-only mode
 ```
 
 That's it! The daemon will now run in the background and automatically renew your Claude sessions.
@@ -100,8 +106,18 @@ chmod +x *.sh
 ./claude-daemon-manager.sh start --at "09:00"
 ./claude-daemon-manager.sh start --at "2025-01-28 14:30"
 
+# Start with both start and stop times
+./claude-daemon-manager.sh start --at "09:00" --stop "17:00"
+./claude-daemon-manager.sh start --at "2025-01-28 09:00" --stop "2025-01-28 17:00"
+
+# Start with clock-only mode (bypass ccusage entirely)
+./claude-daemon-manager.sh start --at "09:00" --stop "17:00" --disableccusage
+
 # Check daemon status
 ./claude-daemon-manager.sh status
+
+# Live dashboard with real-time updates
+./claude-daemon-manager.sh dash
 
 # View logs
 ./claude-daemon-manager.sh logs
@@ -112,18 +128,95 @@ chmod +x *.sh
 # Stop the daemon
 ./claude-daemon-manager.sh stop
 
-# Restart the daemon (with same start time if previously set)
+# Restart the daemon (with same start/stop times if previously set)
 ./claude-daemon-manager.sh restart
 ./claude-daemon-manager.sh restart --at "10:00"  # new start time
+./claude-daemon-manager.sh restart --at "09:00" --stop "17:00"  # new schedule
+```
+
+### Live Dashboard 📊
+
+The new live dashboard provides real-time monitoring of your Claude renewal status:
+
+```bash
+# Launch the interactive dashboard
+./claude-daemon-manager.sh dash
+```
+
+**Dashboard Features:**
+- 🔧 **Daemon Status** - Current state (WAITING/ACTIVE/STOPPED) with PID and timing details
+- ⏱️ **Progress Bar** - Visual progress showing time until next renewal reset (color-coded)
+- 📅 **Today's Plan** - Estimated renewal trigger times throughout the day
+- 📝 **Live Activity** - Real-time log entries and recent daemon actions
+- 🔄 **Auto-Updates** - Refreshes every minute automatically
+- 🎯 **Smart Layout** - Clean interface with clear sections and formatting
+
+**Progress Bar Colors:**
+- 🟢 **Green** - More than 1 hour remaining
+- 🟡 **Yellow** - 30-60 minutes remaining  
+- 🔴 **Red** - Less than 30 minutes remaining
+
+**Usage:**
+- Press **Ctrl+C** to exit the dashboard
+- Dashboard updates automatically every 60 seconds
+- Works only when daemon is running
+- Shows "No renewal tracking" when no activity file exists
+
+Example dashboard output:
+```
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    Claude Auto-Renewal Dashboard                            ║
+║                   Wednesday, August 06, 2025 - 16:54:07                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+🔧 DAEMON STATUS:
+  PID: 12345
+  Status: ✅ ACTIVE - Auto-renewal monitoring enabled
+
+⏱️  TIME TO NEXT RESET:
+  ████████████████████████░░░░░░░░░░░░░░░░ 60% (1h 59m remaining)
+  Next renewal at: 18:53
+
+📅 TODAY'S RENEWAL PLAN:
+  • 18:53 (NEXT)
+  • 23:53
+
+📝 RECENT ACTIVITY:
+  [2025-08-06 16:53:20] Renewal successful!
+  [2025-08-06 16:53:10] Starting Claude session for renewal...
 ```
 
 ### How It Works
 
 1. **Monitors** your Claude usage using ccusage (or time-based fallback)
 2. **Detects** when your 5-hour block is about to expire
-3. **Waits** until just after expiration
+3. **Waits** until just after expiration (within scheduled hours)
 4. **Starts** a minimal Claude session ("hi" command)
-5. **Logs** all activities for transparency
+5. **Stops** monitoring at configured stop time
+6. **Automatically restarts** the next day at start time
+7. **Logs** all activities for transparency
+
+### Clock-only Mode
+
+By default, the daemon uses [ccusage](https://github.com/ryoppippi/ccusage) for accurate timing information.
+However, you can bypass ccusage entirely and rely solely on clock-based timing:
+
+```bash
+# Start with clock-only mode
+./claude-daemon-manager.sh start --at "09:00" --stop "17:00" --disableccusage
+```
+
+When `--disableccusage` is used:
+- 🚫 **No ccusage dependency** - Works without ccusage installed
+- ⏰ **Clock-based timing** - Relies on 5-hour intervals from last activity
+- 📝 **Clear logging** - Shows "⚠️ ccusage DISABLED - Using clock-based timing only"
+- 🎯 **Same functionality** - All scheduling features still work
+
+This mode is useful when:
+- You don't want to install ccusage
+- ccusage is causing issues on your system
+- You prefer simpler time-based renewal checking
+- You're in a restricted environment where ccusage can't run
 
 ### 💡 Avoid Session Burning
 
@@ -135,12 +228,19 @@ chmod +x *.sh
 # GOOD: Schedule daemon to start monitoring at 9am
 ./claude-daemon-manager.sh start --at "09:00"
 # Your 5-hour block: 9am-2pm (perfect timing!)
+
+# BETTER: Schedule both start and stop times for daily work schedule
+./claude-daemon-manager.sh start --at "09:00" --stop "17:00"
+# Monitors 9am-5pm, stops automatically, resumes next day at 9am
 ```
 
 **Use Cases:**
 - 🌅 **Morning Coder**: `--at "09:00"` for 9am-2pm coding sessions
 - 🌙 **Night Owl**: `--at "18:00"` for 6pm-11pm evening coding
+- 🏢 **Work Schedule**: `--at "09:00" --stop "17:00"` for 9am-5pm daily monitoring
+- 🎯 **Focused Sessions**: `--at "14:00" --stop "19:00"` for afternoon coding blocks
 - 📅 **Planned Session**: `--at "2025-01-28 14:30"` for specific date/time
+- ⚡ **Clock-only Mode**: `--at "09:00" --stop "17:00" --disableccusage` to bypass ccusage
 
 ### Monitoring Schedule
 
@@ -229,6 +329,15 @@ tail -20 ~/.claude-auto-renew-daemon.log
 ccusage blocks
 
 # The daemon will fall back to time-based checking automatically
+# Or use --disableccusage flag to bypass ccusage entirely
+```
+
+### Clock-only mode verification
+```bash
+# Check logs for clock-only mode confirmation
+grep "ccusage DISABLED" ~/.claude-auto-renew-daemon.log
+
+# Should show: "⚠️ ccusage DISABLED - Using clock-based timing only"
 ```
 
 ### Claude command fails
@@ -277,8 +386,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 💡 Tips
 
+- Use `claude-daemon-manager.sh dash` for real-time monitoring with visual progress
 - Run `claude-daemon-manager.sh status` regularly to ensure the daemon is active
 - Check logs after updates to verify renewals are working
+- The dashboard shows estimated renewal times for the entire day
+- Progress bar changes color as renewal approaches (green → yellow → red)
 - The daemon is lightweight - uses minimal resources while running
 - Can be added to system startup for automatic launch
 
