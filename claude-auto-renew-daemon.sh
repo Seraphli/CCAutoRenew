@@ -8,6 +8,7 @@ PID_FILE="$HOME/.claude-auto-renew-daemon.pid"
 LAST_ACTIVITY_FILE="$HOME/.claude-last-activity"
 START_TIME_FILE="$HOME/.claude-auto-renew-start-time"
 STOP_TIME_FILE="$HOME/.claude-auto-renew-stop-time"
+MESSAGE_FILE="$HOME/.claude-auto-renew-message"
 DISABLE_CCUSAGE=false
 
 # Function to log messages
@@ -186,12 +187,21 @@ start_claude_session() {
         return 1
     fi
     
-    # Define an array of predefined messages
-    local messages=("hi" "hello" "hey there" "good day" "greetings" "howdy" "what's up" "salutations")
+    # Check if custom message is available
+    local selected_message=""
     
-    # Randomly select a message from the array
-    local random_index=$((RANDOM % ${#messages[@]}))
-    local selected_message="${messages[$random_index]}"
+    if [ -f "$MESSAGE_FILE" ]; then
+        # Use custom message
+        selected_message=$(cat "$MESSAGE_FILE")
+        log_message "Using custom message: \"$selected_message\""
+    else
+        # Define an array of predefined messages
+        local messages=("hi" "hello" "hey there" "good day" "greetings" "howdy" "what's up" "salutations")
+        
+        # Randomly select a message from the array
+        local random_index=$((RANDOM % ${#messages[@]}))
+        selected_message="${messages[$random_index]}"
+    fi
     
     # Simple approach - macOS compatible
     # Use a subshell with background process for timeout
@@ -305,6 +315,14 @@ main() {
         log_message "Stop time configured: $(date -d "@$stop_epoch" 2>/dev/null || date -r "$stop_epoch")"
     else
         log_message "No stop time set - will monitor continuously"
+    fi
+    
+    # Check for custom message
+    if [ -f "$MESSAGE_FILE" ]; then
+        custom_message=$(cat "$MESSAGE_FILE")
+        log_message "Custom renewal message configured: \"$custom_message\""
+    else
+        log_message "Using default random greeting messages for renewal"
     fi
     
     # Check ccusage availability

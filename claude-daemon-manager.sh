@@ -7,6 +7,7 @@ PID_FILE="$HOME/.claude-auto-renew-daemon.pid"
 LOG_FILE="$HOME/.claude-auto-renew-daemon.log"
 START_TIME_FILE="$HOME/.claude-auto-renew-start-time"
 STOP_TIME_FILE="$HOME/.claude-auto-renew-stop-time"
+MESSAGE_FILE="$HOME/.claude-auto-renew-message"
 
 # Colors for output
 RED='\033[0;31m'
@@ -31,6 +32,7 @@ start_daemon() {
     START_TIME=""
     STOP_TIME=""
     DISABLE_CCUSAGE=false
+    CUSTOM_MESSAGE=""
     
     # Parse parameters
     while [[ $# -gt 1 ]]; do
@@ -46,6 +48,10 @@ start_daemon() {
             --disableccusage)
                 DISABLE_CCUSAGE=true
                 shift
+                ;;
+            --message)
+                CUSTOM_MESSAGE="$3"
+                shift 2
                 ;;
             *)
                 shift
@@ -105,6 +111,16 @@ start_daemon() {
     else
         # Remove any existing stop time
         rm -f "$STOP_TIME_FILE" 2>/dev/null
+    fi
+    
+    # Process custom message
+    if [ -n "$CUSTOM_MESSAGE" ]; then
+        # Store custom message
+        echo "$CUSTOM_MESSAGE" > "$MESSAGE_FILE"
+        print_status "Using custom renewal message: \"$CUSTOM_MESSAGE\""
+    else
+        # Remove any existing custom message (use default messages)
+        rm -f "$MESSAGE_FILE" 2>/dev/null
     fi
     
     if [ -f "$PID_FILE" ]; then
@@ -588,9 +604,11 @@ case "$1" in
         echo "  start --at TIME            - Start daemon but begin monitoring at specified time"
         echo "  start --at TIME --stop END - Start monitoring at TIME, stop at END"
         echo "  start --disableccusage     - Start daemon without ccusage (clock-based only)"
+        echo "  start --message \"text\"     - Use custom message for renewal instead of random greetings"
         echo "                               Examples: --at '09:00' --stop '17:00'"
         echo "                                        --at '2025-01-28 09:00' --stop '2025-01-28 17:00'"
         echo "                                        --at '09:00' --stop '17:00' --disableccusage"
+        echo "                                        --message 'continue working on the React feature'"
         echo "  stop                       - Stop the daemon"
         echo "  restart                    - Restart the daemon"
         echo "  status                     - Show daemon status"
