@@ -3,6 +3,16 @@
 # Claude Daily Trigger - Simple cron-based daily trigger
 # This script is meant to be called by cron
 
+# Set PATH to include common locations where claude might be installed
+# This is necessary because cron runs with a minimal PATH
+export PATH="$HOME/.nvm/versions/node/v20.16.0/bin:$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+# If nvm is installed, source it to ensure we get the latest node/npm paths
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+    export NVM_DIR="$HOME/.nvm"
+    source "$NVM_DIR/nvm.sh"
+fi
+
 LOG_FILE="$HOME/.claude-daily-trigger.log"
 LAST_TRIGGER_FILE="$HOME/.claude-daily-trigger-last"
 MESSAGE_FILE="$HOME/.claude-daily-trigger-message"

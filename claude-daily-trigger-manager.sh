@@ -90,10 +90,16 @@ setup_cron() {
     fi
 
     # Remove existing cron jobs if present
-    crontab -l 2>/dev/null | grep -v "$CRON_MARKER" | crontab -
+    crontab -l 2>/dev/null | grep -v "$CRON_MARKER" | grep -v "^PATH=" | crontab -
 
     # Add new cron jobs for each time
     local new_crontab=$(crontab -l 2>/dev/null)
+
+    # Add PATH environment variable for cron if not already present
+    if ! echo "$new_crontab" | grep -q "^PATH="; then
+        new_crontab=$(echo "PATH=$HOME/.nvm/versions/node/v20.16.0/bin:$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin"; echo "$new_crontab")
+    fi
+
     for i in "${!cron_times[@]}"; do
         new_crontab=$(echo "$new_crontab"; echo "${cron_times[$i]} $TRIGGER_SCRIPT $CRON_MARKER")
     done
@@ -119,8 +125,8 @@ remove_cron() {
         exit 0
     fi
 
-    # Remove cron job
-    crontab -l 2>/dev/null | grep -v "$CRON_MARKER" | crontab -
+    # Remove cron job and PATH setting
+    crontab -l 2>/dev/null | grep -v "$CRON_MARKER" | grep -v "^PATH=" | crontab -
 
     echo "✅ Daily trigger removed successfully"
 }
