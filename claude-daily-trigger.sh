@@ -33,7 +33,7 @@ trigger_claude_once() {
     local selected_message="$1"
     local output_file=$(mktemp)
 
-    (echo "$selected_message" | claude >> "$output_file" 2>&1) &
+    (echo "$selected_message" | claude --model haiku >> "$output_file" 2>&1) &
     local pid=$!
     local count=0
     while kill -0 $pid 2>/dev/null && [ $count -lt 10 ]; do
