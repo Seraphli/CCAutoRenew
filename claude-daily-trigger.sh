@@ -23,7 +23,7 @@ already_triggered_today() {
     local last_trigger=$(cat "$LAST_TRIGGER_FILE")
     local current_epoch=$(date +%s)
     local time_diff=$((current_epoch - last_trigger))
-    if [ "$time_diff" -lt 18000 ]; then
+    if [ "$time_diff" -lt 17700 ]; then
         return 0
     fi
     return 1
@@ -33,7 +33,7 @@ trigger_claude_once() {
     local selected_message="$1"
     local output_file=$(mktemp)
 
-    (echo "$selected_message" | claude --model haiku >> "$output_file" 2>&1) &
+    (cd /tmp && echo "$selected_message" | claude --model haiku >> "$output_file" 2>&1) &
     local pid=$!
     local count=0
     while kill -0 $pid 2>/dev/null && [ $count -lt 10 ]; do
